@@ -1,0 +1,41 @@
+{
+  "name": "myweathercard",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev",
+    "build": "next build",
+    "start": "next start",
+    "lint": "next lint",
+    "test": "npm run test:unit && npm run test:components",
+    "test:unit": "vitest run tests/unit",
+    "test:components": "vitest run tests/components",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "generate:locations": "node scripts/build-location-index.mjs"
+  },
+  "dependencies": {
+    "html-to-image": "^1.11.11",
+    "next": "^15.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-rnd": "^10.5.2"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.55.0",
+    "@testing-library/jest-dom": "^6.8.0",
+    "@testing-library/react": "^16.0.1",
+    "@testing-library/user-event": "^14.6.1",
+    "@types/node": "^22.10.10",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "autoprefixer": "^10.4.20",
+    "eslint": "^9.20.1",
+    "eslint-config-next": "^15.0.0",
+    "jsdom": "^26.0.0",
+    "postcss": "^8.5.1",
+    "tailwindcss": "^3.4.17",
+    "typescript": "^5.8.3",
+    "vitest": "^3.2.4"
+  }
+}
