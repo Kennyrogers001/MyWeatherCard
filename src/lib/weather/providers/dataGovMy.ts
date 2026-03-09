@@ -333,7 +333,7 @@ export async function fetchDataGovWarnings(locationId: string): Promise<Forecast
 
   return {
     date: toStringValue(readFromKeys(latest, ["date", "datetime", "timestamp"])) ?? new Date().toISOString(),
-    summary: toStringValue(readFromKeys(latest, ["summary", "title", "warning"])) ?? warning.warningTitle,
+    summary: toStringValue(readFromKeys(latest, ["summary", "title", "warning"])) ?? warning.warningTitle ?? "No summary",
     warningTitle: warning.warningTitle,
     warningLevel: warning.warningLevel
   };
