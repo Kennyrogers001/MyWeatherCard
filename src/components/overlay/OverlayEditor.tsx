@@ -26,22 +26,41 @@ type OverlayLayout = {
   meta: LayoutState;
 };
 
+type AspectRatio = "1:1" | "4:5";
+
 const STORAGE_KEY = "myweathercard.overlay.layout";
+const RATIO_STORAGE_KEY = "myweathercard.overlay.ratio";
 const MAX_IMAGE_BYTES = 10 * 1024 * 1024;
 const GRID_SIZE = 8;
 
-const defaultLayout: OverlayLayout = {
-  headline: {
-    x: 24,
-    y: 28,
-    width: 250,
-    height: 140
+const defaultLayout: Record<AspectRatio, OverlayLayout> = {
+  "4:5": {
+    headline: {
+      x: 24,
+      y: 28,
+      width: 280,
+      height: 140
+    },
+    meta: {
+      x: 24,
+      y: 188,
+      width: 240,
+      height: 92
+    }
   },
-  meta: {
-    x: 24,
-    y: 188,
-    width: 212,
-    height: 92
+  "1:1": {
+    headline: {
+      x: 24,
+      y: 24,
+      width: 280,
+      height: 140
+    },
+    meta: {
+      x: 24,
+      y: 180,
+      width: 240,
+      height: 92
+    }
   }
 };
 
@@ -59,34 +78,58 @@ export const OverlayEditor = forwardRef<HTMLDivElement, OverlayEditorProps>(func
 ) {
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
   const [uploadError, setUploadError] = useState<string | null>(null);
-  const [layout, setLayout] = useState<OverlayLayout>(defaultLayout);
+  const [aspectRatio, setAspectRatio] = useState<AspectRatio>("4:5");
+  const [layout, setLayout] = useState<OverlayLayout>(defaultLayout["4:5"]);
 
   useEffect(() => {
     if (typeof window === "undefined") {
       return;
     }
 
-    const persisted = window.localStorage.getItem(STORAGE_KEY);
-    if (!persisted) {
-      return;
+    const savedRatio = window.localStorage.getItem(RATIO_STORAGE_KEY) as AspectRatio | null;
+    if (savedRatio && (savedRatio === "1:1" || savedRatio === "4:5")) {
+      setAspectRatio(savedRatio);
     }
 
-    try {
-      const parsed = JSON.parse(persisted) as OverlayLayout;
-      if (parsed.headline && parsed.meta) {
-        setLayout(parsed);
+    const persisted = window.localStorage.getItem(`${STORAGE_KEY}.${savedRatio ?? "4:5"}`);
+    if (persisted) {
+      try {
+        const parsed = JSON.parse(persisted) as OverlayLayout;
+        if (parsed.headline && parsed.meta) {
+          setLayout(parsed);
+        }
+      } catch {
+        window.localStorage.removeItem(`${STORAGE_KEY}.${savedRatio ?? "4:5"}`);
       }
-    } catch {
-      window.localStorage.removeItem(STORAGE_KEY);
+    } else {
+      setLayout(defaultLayout[savedRatio ?? "4:5"]);
     }
   }, []);
 
-  const persistLayout = useCallback((nextLayout: OverlayLayout) => {
+  const persistLayout = useCallback((nextLayout: OverlayLayout, ratio: AspectRatio) => {
     setLayout(nextLayout);
     if (typeof window !== "undefined") {
-      window.localStorage.setItem(STORAGE_KEY, JSON.stringify(nextLayout));
+      window.localStorage.setItem(`${STORAGE_KEY}.${ratio}`, JSON.stringify(nextLayout));
     }
   }, []);
+
+  const changeAspectRatio = (newRatio: AspectRatio) => {
+    setAspectRatio(newRatio);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(RATIO_STORAGE_KEY, newRatio);
+      const persisted = window.localStorage.getItem(`${STORAGE_KEY}.${newRatio}`);
+      if (persisted) {
+        try {
+          const parsed = JSON.parse(persisted) as OverlayLayout;
+          setLayout(parsed);
+          return;
+        } catch {
+          // fallback to default
+        }
+      }
+      setLayout(defaultLayout[newRatio]);
+    }
+  };
 
   const onUploadPhoto = useCallback((event: ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -128,22 +171,67 @@ export const OverlayEditor = forwardRef<HTMLDivElement, OverlayEditorProps>(func
   }, [snapshot]);
 
   return (
-    <div className="w-full max-w-md space-y-4">
-      <div className="rounded-2xl border border-slate-200 bg-white p-4 shadow-sm">
-        <label className="flex cursor-pointer items-center justify-between rounded-xl border border-dashed border-slate-300 p-3 text-sm text-slate-700 hover:border-slate-400">
-          <span>
-            <span className="block font-semibold">{en.uploadPhoto}</span>
-            <span className="text-xs text-slate-500">{en.uploadHint}</span>
-          </span>
-          <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={onUploadPhoto} />
-          <span className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-semibold text-white">Choose</span>
-        </label>
-        {uploadError ? <p className="mt-2 text-xs text-red-600">{uploadError}</p> : null}
+    <div className="w-full max-w-md space-y-6">
+      <div className="flex flex-col gap-4 rounded-3xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="flex items-center justify-between">
+          <label className="text-xs font-bold uppercase tracking-widest text-slate-400">
+            Export Format
+          </label>
+          <div className="flex gap-1 rounded-xl bg-slate-100 p-1">
+            {(["4:5", "1:1"] as const).map((ratio) => (
+              <button
+                key={ratio}
+                type="button"
+                onClick={() => changeAspectRatio(ratio)}
+                className={`flex h-8 items-center px-4 text-xs font-bold transition-all ${aspectRatio === ratio
+                    ? "rounded-lg bg-white text-slate-900 shadow-sm"
+                    : "text-slate-500 hover:text-slate-700"
+                  }`}
+              >
+                {ratio === "4:5" ? "Portrait (4:5)" : "Square (1:1)"}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="h-px bg-slate-100" />
+
+        <div className="space-y-3">
+          <label className="text-xs font-bold uppercase tracking-widest text-slate-400">
+            Background Image
+          </label>
+          <label className="group relative flex cursor-pointer flex-col items-center justify-center gap-2 rounded-2xl border-2 border-dashed border-slate-200 bg-slate-50/50 p-6 transition-all hover:border-slate-300 hover:bg-slate-50">
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-white shadow-sm transition-transform group-hover:scale-110">
+              <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className="text-slate-500"><rect width="18" height="18" x="3" y="3" rx="2" ry="2" /><circle cx="9" cy="9" r="2" /><path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21" /></svg>
+            </div>
+            <div className="text-center">
+              <span className="block text-sm font-semibold text-slate-900">{photoDataUrl ? "Change Photo" : en.uploadPhoto}</span>
+              <span className="text-xs text-slate-500">{en.uploadHint}</span>
+            </div>
+            <input type="file" accept="image/png,image/jpeg" className="hidden" onChange={onUploadPhoto} />
+          </label>
+          {uploadError ? <p className="text-center text-xs font-medium text-red-500">{uploadError}</p> : null}
+        </div>
+
+        <button
+          type="button"
+          onClick={() => {
+            const next = defaultLayout[aspectRatio];
+            setLayout(next);
+            if (typeof window !== "undefined") {
+              window.localStorage.setItem(`${STORAGE_KEY}.${aspectRatio}`, JSON.stringify(next));
+            }
+          }}
+          className="w-full rounded-xl border border-slate-200 py-3 text-xs font-bold uppercase tracking-widest text-slate-500 transition hover:bg-slate-50 hover:text-slate-900"
+        >
+          Reset Elements Position
+        </button>
       </div>
 
       <div
         ref={ref}
-        className="relative aspect-[4/5] w-full overflow-hidden rounded-[2rem] border border-slate-300 bg-slate-900 shadow-2xl"
+        className={`relative w-full overflow-hidden rounded-[2.5rem] border border-slate-300 bg-slate-900 shadow-2xl transition-all duration-500 ${aspectRatio === "4:5" ? "aspect-[4/5]" : "aspect-square"
+          }`}
         data-export-target="overlay-card"
       >
         {photoDataUrl ? (
@@ -155,16 +243,20 @@ export const OverlayEditor = forwardRef<HTMLDivElement, OverlayEditorProps>(func
             sizes="(max-width: 768px) 100vw, 400px"
           />
         ) : (
-          <div className="absolute inset-0 bg-[linear-gradient(145deg,#0f172a_20%,#334155_45%,#1e293b_75%)]" />
+          <div className="absolute inset-0 bg-[linear-gradient(135deg,#1e293b_0%,#0f172a_100%)]">
+            <div className="absolute inset-0 opacity-20" style={{ backgroundImage: 'radial-gradient(#94a3b8 1px, transparent 1px)', backgroundSize: '24px 24px' }} />
+          </div>
         )}
 
         {!photoDataUrl ? (
-          <p className="absolute bottom-6 left-1/2 z-20 -translate-x-1/2 rounded-full bg-black/50 px-4 py-2 text-xs text-white/90">
-            {en.noPhoto}
-          </p>
+          <div className="absolute inset-0 flex items-center justify-center">
+            <p className="rounded-full bg-black/40 px-6 py-2.5 text-xs font-medium text-white/90 backdrop-blur-md border border-white/10">
+              {en.noPhoto}
+            </p>
+          </div>
         ) : null}
 
-        <div className="absolute inset-0 bg-gradient-to-b from-black/10 via-transparent to-black/45" />
+        <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-transparent to-black/20" />
 
         <Rnd
           bounds="parent"
@@ -180,7 +272,7 @@ export const OverlayEditor = forwardRef<HTMLDivElement, OverlayEditorProps>(func
                 x: snap(data.x),
                 y: snap(data.y)
               }
-            });
+            }, aspectRatio);
           }}
           onResizeStop={(_event, _direction, elementRef, _delta, position) => {
             const nextWidth = Number.parseFloat(elementRef.style.width);
@@ -195,14 +287,14 @@ export const OverlayEditor = forwardRef<HTMLDivElement, OverlayEditorProps>(func
                   ? snap(nextHeight)
                   : layout.headline.height
               }
-            });
+            }, aspectRatio);
           }}
           className="z-20"
         >
-          <div className="h-full w-full rounded-2xl border border-white/35 bg-black/35 p-4 text-white backdrop-blur-[1px]">
-            <p className="text-xs uppercase tracking-[0.2em] text-white/80">MyWeatherCard</p>
-            <p className="mt-2 font-display text-4xl leading-none">{temp}</p>
-            <p className="mt-2 text-xs uppercase tracking-[0.16em] text-white/80">{summary}</p>
+          <div className="h-full w-full rounded-2xl border border-white/20 bg-black/25 p-5 text-white backdrop-blur-md shadow-lg flex flex-col justify-center">
+            <p className="text-[10px] uppercase font-bold tracking-[0.3em] text-white/60">MyWeatherCard</p>
+            <p className="mt-1 font-display text-5xl font-medium tracking-tighter leading-none">{temp}</p>
+            <p className="mt-2 text-[11px] font-bold uppercase tracking-[0.2em] text-white/70">{summary}</p>
           </div>
         </Rnd>
 
@@ -220,7 +312,7 @@ export const OverlayEditor = forwardRef<HTMLDivElement, OverlayEditorProps>(func
                 x: snap(data.x),
                 y: snap(data.y)
               }
-            });
+            }, aspectRatio);
           }}
           onResizeStop={(_event, _direction, elementRef, _delta, position) => {
             const nextWidth = Number.parseFloat(elementRef.style.width);
@@ -233,14 +325,14 @@ export const OverlayEditor = forwardRef<HTMLDivElement, OverlayEditorProps>(func
                 width: Number.isFinite(nextWidth) ? snap(nextWidth) : layout.meta.width,
                 height: Number.isFinite(nextHeight) ? snap(nextHeight) : layout.meta.height
               }
-            });
+            }, aspectRatio);
           }}
           className="z-20"
         >
-          <div className="h-full w-full rounded-2xl border border-white/35 bg-black/35 p-4 text-white backdrop-blur-[1px]">
-            <p className="text-xs uppercase tracking-[0.18em] text-white/80">Humidity</p>
-            <p className="text-2xl font-semibold">{humidity}</p>
-            <p className="mt-1 text-xs text-white/85">{formattedLocation}</p>
+          <div className="h-full w-full rounded-2xl border border-white/20 bg-black/25 p-5 text-white backdrop-blur-md shadow-lg flex flex-col justify-center">
+            <p className="text-[10px] uppercase font-bold tracking-[0.2em] text-white/60">Humidity</p>
+            <p className="text-3xl font-bold tracking-tight">{humidity}</p>
+            <p className="mt-1 text-[11px] font-medium text-white/50 truncate">{formattedLocation}</p>
           </div>
         </Rnd>
       </div>
