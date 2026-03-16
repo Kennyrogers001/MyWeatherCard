@@ -18,11 +18,30 @@ function createFileName(locationName: string): string {
 }
 
 async function generateCardBlob(node: HTMLElement): Promise<Blob> {
+  const originalWidth = node.offsetWidth;
+  const originalHeight = node.offsetHeight;
+
+  // targetWidth is the "canvas" width before pixelRatio
+  // 1080 * pixelRatio(2) = 2160px (User's requested dimension)
+  const targetWidth = 1080;
+  const scale = targetWidth / originalWidth;
+  const targetHeight = originalHeight * scale;
+
   const blob = await toBlob(node, {
-    width: 1080,
-    height: 1350,
+    width: targetWidth,
+    height: targetHeight,
     pixelRatio: 2,
-    cacheBust: true
+    cacheBust: true,
+    style: {
+      transform: `scale(${scale})`,
+      transformOrigin: "top left",
+      width: `${originalWidth}px`,
+      height: `${originalHeight}px`,
+      maxWidth: "none",
+      maxHeight: "none",
+      margin: "0",
+      padding: "0"
+    }
   });
 
   if (!blob) {
